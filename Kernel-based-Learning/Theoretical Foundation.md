@@ -28,3 +28,11 @@
 * 통계학에서 금과옥조처럼 여기는 것은 최소 데이터의 개수가 특성의 개수보다는 커야된다. 그래야 singularity가 발생하지 않는다.
 * 그러나 최근의 ChatGPT 같은 것들은 Test Error가 더 적더라.
 * 설명력을 증명하는 것이 또 과제이다. (2021년 기준)
+
+### Interpret the result
+* Regression coefficient
+  * Beta value for the corresponding predictor variable
+  * THe amount of change when the predictor variable increases by $1$
+    * Age_08_04 를 보면, 1년이 올라가면 123유로가 떨어진다. 
+  * If it is positive/negative, then the predictor variable and the target variable are positively/negatively correlated 
+  * > 이러한 설명이 유효하려면 p-value를 먼저 살펴보고 $0.05$ 이하여야한다.
