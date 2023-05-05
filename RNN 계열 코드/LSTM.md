@@ -113,3 +113,62 @@ LSTM(Long Short-Term Memory)은 RNN(Recurrent Neural Network)의 일종으로, �
 3. 오파라미터 튜닝: LSTM은 다양한 게이트와 파라미터를 가지고 있어 최적의 성능을 얻기 위해 튜닝이 필요합니다. 이 과정은 시간과 노력이 많이 들어가며, 결과적으로 모델의 성능에 큰 영향을 줍니다.
 
 요약하면, LSTM은 장기 의존성 문제를 해결하고 그래디언트 소실 문제를 완화할 수 있지만, 계산 복잡성과 구현 난이도가 높아지는 단점이 있습니다. 이러한 이유로, LSTM은 주로 긴 시퀀스 데이터를 처리하는 데 사용됩니다. 그러나 최근에는 LSTM의 단점을 극복하기 위한 새로운 모델들이 제안되고 있습니다. 이러한 모델 중 하나는 GRU(Gated Recurrent Unit)로, LSTM의 구조를 단순화하면서도 유사한 성능을 제공합니다. 또한, 트랜스포머(Transformer) 모델은 RNN이 아닌 자기 회귀(self-attention) 메커니즘을 사용하여 시퀀스 데이터를 처리하는 방법을 제공하며, 많은 자연어 처리 작업에서 높은 성능을 보여주고 있습니다. 따라서 LSTM 외에도 다양한 대안이 존재하므로, 특정 문제를 해결할 때는 이러한 대안들도 고려해볼 필요가 있습니다.
+
+---
+### Check How LSTM Works
+- `N`: number of batches
+- `L`: sequence lengh
+- `Q`: input dim
+- `K`: number of layers
+- `D`: LSTM feature dimension
+
+` Y,(hn,cn) = LSTM(X) `
+
+- `X`: [N x L x Q] - `N` input sequnce of length `L` with `Q` dim. 
+- `Y`: [N x L x D] - `N` output sequnce of length `L` with `D` feature dim.
+- `hn`: [K x N x D] - `K` (per each layer) of `N` final hidden state with  `D` feature dim. 
+- `cn`: [K x N x D] - `K` (per each layer) of `N` final hidden state with  `D` cell dim. 
+
+---
+
+```python
+class RecurrentNeuralNetworkClass(nn.Module):
+    def __init__(self,name='rnn',xdim=28,hdim=256,ydim=10,n_layer=3):
+        super(RecurrentNeuralNetworkClass,self).__init__()
+        self.name = name
+        self.xdim = xdim
+        self.hdim = hdim
+        self.ydim = ydim
+        self.n_layer = n_layer # K
+
+        self.rnn = nn.LSTM(
+            input_size=self.xdim,hidden_size=self.hdim,num_layers=self.n_layer,batch_first=True)
+        self.lin = nn.Linear(self.hdim,self.ydim)
+
+    def forward(self,x):
+        # Set initial hidden and cell states 
+        h0 = torch.zeros(
+            # FILL IN HERE
+            self.n_layer, x.size(0), self.hdim
+        ).to(device)
+        c0 = torch.zeros(
+            # FILL IN HERE
+            self.n_layer, x.size(0), self.hdim
+        ).to(device)
+        # RNN
+        rnn_out,(hn,cn) = self.rnn(x, (h0,c0)) 
+        # x:[N x L x Q] => rnn_out:[N x L x D]
+        # Linear
+        out = self.lin(
+            # FILL IN HERE
+            rnn_out[:, -1, :]
+            ).view([-1,self.ydim]) 
+        return out 
+
+R = RecurrentNeuralNetworkClass(
+    name='rnn',xdim=28,hdim=256,ydim=10,n_layer=3).to(device)
+loss = nn.CrossEntropyLoss()
+optm = optim.Adam(R.parameters(),lr=1e-3)
+print ("Done.")
+```
+
