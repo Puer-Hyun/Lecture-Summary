@@ -308,3 +308,5 @@ loss = nn.CrossEntropyLoss()
 optm = optim.Adam(R.parameters(),lr=1e-2)
 print ("Done.")
 ```
+### Bi-directional LSTM
+![](images/2023-05-07-00-20-41.png)
