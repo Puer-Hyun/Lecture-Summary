@@ -172,3 +172,138 @@ optm = optim.Adam(R.parameters(),lr=1e-3)
 print ("Done.")
 ```
 
+죄송합니다. 제가 이전 설명에서 헷갈린 부분이 있었습니다. 설명을 다시 정리하겠습니다.
+
+`rnn_out`은 모든 시간 스텝에 대한 hidden states를 포함합니다. 그러나 `rnn_out`에는 모든 레이어를 통과한 hidden states만 포함됩니다. 즉, `rnn_out[0, 0, :]`은 첫 번째 샘플의 첫 번째 시점에서의 모든 레이어를 통과한 hidden state를 나타내고, `rnn_out[0, 1, :]`은 첫 번째 샘플의 두 번째 시점에서의 모든 레이어를 통과한 hidden state를 나타냅니다.
+
+`hn`은 각 레이어의 마지막 hidden state를 포함하고 있습니다. 따라서 `hn[0, 0, :]`는 첫 번째 샘플에 대해 첫 번째 레이어의 마지막 hidden state를 나타내며, `hn[1, 0, :]`는 첫 번째 샘플에 대해 두 번째 레이어의 마지막 hidden state를 나타냅니다.
+
+따라서 맞습니다. `rnn_out[0, -1, :]`는 `hn[2, 0, :]`과 동일합니다. 이는 첫 번째 샘플에 대해 가장 마지막 레이어의 마지막 hidden state를 나타냅니다. 이전의 설명에서 혼동이 있어서 죄송합니다.
+
+
+# LSTM Peephole 구현 
+* 구현 과정에서 가장 애를 먹었던 부분은, `nn.ModuleList`를 이용하는 것과 layer 적용까지 하는 것이었다.
+* Xavier 초기화 과정이 기존 코드에는 존재하지 않았는데, 그 부분을 추가하였다. 굳이 추가하지 않아도 됐던 것 같다.
+* 중간에 hn, cn들이 nan으로 진행되는 부분이 있었다. 이는, **EPSILON을 더해줌**으로서 해결하였다. (nan의 해결을 위해서 일일히 print를 찍어보면서 확인한 것은 안 비밀)
+* inplace 문제가 발생하여 cn, hn 등을 `detach`와 `clone`을 이용하여 해결하였다. 
+```python
+class RecurrentNeuralNetworkClass(nn.Module):
+    def __init__(self, name='rnn', xdim=28, hdim=256, ydim=10, n_layer=3):
+        super(RecurrentNeuralNetworkClass, self).__init__()
+        self.name = name
+        self.xdim = xdim
+        self.hdim = hdim
+        self.ydim = ydim
+        self.n_layer = n_layer
+
+        self.cells = nn.ModuleList(
+            [nn.LSTMCell(input_size=self.xdim if i == 0 else self.hdim, hidden_size=self.hdim) for i in range(n_layer)])
+        self.cell_weights = nn.ParameterList([nn.Parameter(torch.randn(3 * self.hdim)) for _ in range(n_layer)])
+        self.lin = nn.Linear(self.hdim, self.ydim)
+
+        # 가중치 초기화
+        for i, cell in enumerate(self.cells):
+            for name, param in cell.named_parameters():
+                if 'weight_ih' in name:
+                    nn.init.xavier_uniform_(param.data)
+                elif 'weight_hh' in name:
+                    nn.init.orthogonal_(param.data)
+                elif 'bias' in name:
+                    param.data.fill_(0)        
+
+    def forward(self, x):
+        batch_size = x.size(0)
+        hidden_seq = []
+
+        h = torch.zeros(self.n_layer, batch_size, self.hdim).to(x.device)
+        #print("Here is h", h)
+        c = torch.zeros(self.n_layer, batch_size, self.hdim).to(x.device)
+        #print("Here is c",c)
+
+        for t in range(x.size(1)):
+            for i in range(self.n_layer):
+                cell = self.cells[i]
+                cell_weight = self.cell_weights[i]
+                #print(cell_weight)
+
+                if i == 0:
+                    #print("This is x,{},{}".format(i,t), x)
+                    input_chunk = x[:, t, :]
+                    #print("Here is input_chunk,{},{}".format(i,t),input_chunk)
+                else:
+                    #print("Here is i > 0")
+                    input_chunk = h[i - 1]
+                    #print("Here is input_chunk,{},{}".format(i,t),input_chunk)
+
+                h_prev, c_prev = h[i], c[i]
+                #print("h_prev, c_prev,{},{}".format(i,t), h_prev, c_prev)
+                h_next, c_next = cell(input_chunk, (h_prev, c_prev))
+                #print("h_next, c_next,{},{}".format(i,t), h_next, c_next)
+
+                ci, cf, co = cell_weight[:self.hdim], cell_weight[self.hdim:2 * self.hdim], cell_weight[2 * self.hdim:]
+                #print("ci, cf, co,{},{}".format(i,t), ci, cf, co)
+                
+                EPSILON = 1e-8
+
+                input_gate = (c_next - c_prev * torch.sigmoid(cf.clone())) / (1 - torch.sigmoid((cf + ci).clone() + EPSILON))
+                # print("input_gate,{},{}".format(i,t), input_gate)
+                forget_gate = (c_next - input_gate * torch.sigmoid(ci.clone())) / (c_prev.clone() + EPSILON)
+                # print("forget_gate,{},{}".format(i,t), forget_gate)
+                output_gate = (h_next / (torch.tanh(c_next.clone()) + EPSILON) - co.clone())
+                # print("output_gate,{},{}".format(i,t), output_gate)
+                
+                
+
+                c_new = input_gate * torch.sigmoid(ci.detach().clone()) + forget_gate * torch.sigmoid(cf.detach().clone()) * c_prev.detach().clone()
+                c[i] = c_new
+                #c[i] = input_gate * torch.sigmoid(ci) + forget_gate * torch.sigmoid(cf) * c_prev
+                #print("c[i],{},{}".format(i,t), c[i])
+                h[i] = torch.sigmoid((output_gate + co).detach().clone()) * torch.tanh(c[i].detach().clone())
+                #h[i] = torch.sigmoid(output_gate + co) * torch.tanh(c[i])
+                #print("h[i],{},{}".format(i,t), h[i])
+
+            hidden_seq.append(h[-1])
+
+        hidden_seq = torch.stack(hidden_seq, dim=1)
+        out = self.lin(hidden_seq[:, -1, :]).view([-1, self.ydim])
+        return out
+
+    def get_rnn_outputs(self, x):
+        batch_size = x.size(0)
+        hidden_seq = []
+
+        h = torch.zeros(self.n_layer, batch_size, self.hdim).to(x.device)
+        c = torch.zeros(self.n_layer, batch_size, self.hdim).to(x.device)
+
+        for t in range(x.size(1)):
+            for i in range(self.n_layer):
+                cell = self.cells[i]
+                cell_weight = self.cell_weights[i]
+
+                if i == 0:
+                    input_chunk = x[:, t, :]
+                else:
+                    input_chunk = h[i - 1]
+
+                h_prev, c_prev = h[i], c[i]
+                h_next, c_next = cell(input_chunk, (h_prev, c_prev))
+
+                ci, cf, co = cell_weight[:self.hdim], cell_weight[self.hdim:2 * self.hdim], cell_weight[2 * self.hdim:]
+                input_gate = (c_next - c_prev * torch.sigmoid(cf)) / (1 - torch.sigmoid(cf + ci))
+                forget_gate = (c_next - input_gate * torch.sigmoid(ci)) / c_prev
+                output_gate = (h_next / torch.tanh(c_next)) - co
+
+                c[i] = input_gate * torch.sigmoid(ci) + forget_gate * torch.sigmoid(cf) * c_prev
+                h[i] = torch.sigmoid(output_gate + co) * torch.tanh(c[i])
+
+            hidden_seq.append(h[-1])
+
+        hidden_seq = torch.stack(hidden_seq, dim=1)
+        return hidden_seq, (h, c)
+
+R = RecurrentNeuralNetworkClass(
+    name='rnn',xdim=28,hdim=128,ydim=10,n_layer=3).to(device)
+loss = nn.CrossEntropyLoss()
+optm = optim.Adam(R.parameters(),lr=1e-2)
+print ("Done.")
+```
