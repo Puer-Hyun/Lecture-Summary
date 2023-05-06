@@ -85,6 +85,7 @@
 # LSTM : A Search Space Odyssey
 ![](images/2023-05-05-01-41-08.png)
 ![](images/2023-05-05-03-12-14.png)
+![](images/2023-05-07-00-11-18.png)
 ## Peephole connection을 활용한다.
 * Peephole Connections는 논문에 따라 선택적으로 존재한다.
 * ![](images/2023-05-05-03-11-27.png)
