@@ -109,4 +109,21 @@ Step2 : Calculate a score, i.e., how much focus to place on other parts of the i
 
 ## Position-wise Feed-Forward networks 
 ![](images/2023-05-07-03-23-36.png)
-![](images/2023-05-07-03-24-26.png)
+![](images/2023-05-07-03-26-27.png)
+  <span style="color: yellow;">
+독립적으로 계산한다고 했지만, Convolution의 개념을 도입하면 조금 더 빠르게 계산을 할 수 있을 것이다. 
+</span>
+
+* ![](images/2023-05-07-03-28-45.png)
+* ![](images/2023-05-07-03-29-01.png)
+
+
+## Decoder에서의 Self-attention
+* Self attention layers in the decoder is only allowed to attend to earlier positions in the output sequence, which is done by masking future positions (setting them to $-\infty$) before the softmax step in the self attention calculation. 
+* Thinking Machine에 대해 self attention을 해주려고 하는데, 디코더에서 Thinking 이후에 Machines을 미리 보면 안되기 때문에 Masked Multi-head Attention을 진행한다.
+* ![](images/2023-05-07-03-32-10.png)
+* ![](images/2023-05-07-03-32-22.png)
+* ![](images/2023-05-07-03-33-27.png)
+
+# Final Step
+![](images/2023-05-07-03-35-47.png)
